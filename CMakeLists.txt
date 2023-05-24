@@ -74,7 +74,7 @@ set(src
 	src/tls12.c
 	src/tls13.c
 	src/file.c
-)
+        )
 
 set(tools
 	tools/gmssl.c
@@ -336,6 +336,7 @@ if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
 	enable_testing()
 	foreach(name ${tests})
 		add_test(NAME ${name} COMMAND ${name}test)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -O3")
 		add_executable(${name}test tests/${name}test.c)
 		target_link_libraries (${name}test LINK_PUBLIC gmssl)
 	endforeach()

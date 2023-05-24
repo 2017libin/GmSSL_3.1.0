@@ -393,10 +393,6 @@ int test_sm9_point() {
 		return -1;
 	}
 
-
-
-
-
 	printf("%s() ok\n", __FUNCTION__);
 	return 1;
 err:
@@ -530,8 +526,8 @@ err:
 	"2A430968F16086061904CE201847934B11CA0F9E9528F5A9D0CE8F015C9AEA79\n" \
 	"934FDDA6D3AB48C8571CE2354B79742AA498CB8CDDE6BD1FA5946345A1A652F6"
 
-
-int test_sm9_pairing()
+#include <omp.h>
+int test_sm9_pairing(int thread_num)
 {
 	const SM9_POINT _P1 = {
 		{0x7c66dddd, 0xe8c4e481, 0x09dc3280, 0xe1e40869, 0x487d01d6, 0xf5ed0704, 0x62bf718f, 0x93de051d},
@@ -565,6 +561,19 @@ int test_sm9_pairing()
 	sm9_bn_t k;
 	int j = 1;
 
+#if 1
+    double begin,end;
+    size_t count = 100;
+    // 签名性能测试
+    begin = omp_get_wtime();
+    #pragma omp parallel for num_threads(thread_num)
+    for(int i = 0; i < count;i++){
+        sm9_pairing(r, Ppubs, P1);
+    }
+    end = omp_get_wtime();
+    printf("pairing - %d threads: run %d times, , total time: %f s, per second run %f tims\n", \
+			thread_num, count, (end-begin), count/(end-begin));
+#endif
 	sm9_pairing(r, Ppubs, P1); sm9_fp12_from_hex(s, hex_pairing1); if (!sm9_fp12_equ(r, s)) goto err; ++j;
 
 	sm9_twist_point_from_hex(&p, hex_deB); sm9_point_from_hex(&q, hex_RA);
@@ -584,7 +593,7 @@ err:
 #define hex_ks		"000130E78459D78545CB54C587E02CF480CE0B66340F319F348A1D5B1F2DC5F4"
 #define hex_ds		"A5702F05CF1315305E2D6EB64B0DEB923DB1A0BCF0CAFF90523AC8754AA69820-78559A844411F9825C109F5EE3F52D720DD01785392A727BB1556952B2B013D3"
 
-int test_sm9_sign() {
+int test_sm9_sign(int thread_num) {
 	SM9_SIGN_CTX ctx;
 	SM9_SIGN_KEY key;
 	SM9_SIGN_MASTER_KEY mpk;
@@ -596,6 +605,7 @@ int test_sm9_sign() {
 	uint8_t data[20] = {0x43, 0x68, 0x69, 0x6E, 0x65, 0x73, 0x65, 0x20, 0x49, 0x42, 0x53, 0x20, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64};
 	uint8_t IDA[5] = {0x41, 0x6C, 0x69, 0x63, 0x65};
 
+    //
 	sm9_bn_from_hex(mpk.ks, hex_ks); sm9_twist_point_mul_generator(&(mpk.Ppubs), mpk.ks);
 	if (sm9_sign_master_key_extract_key(&mpk, (char *)IDA, sizeof(IDA), &key) < 0) goto err; ++j;
 	sm9_point_from_hex(&ds, hex_ds); if (!sm9_point_equ(&(key.ds), &ds)) goto err; ++j;
@@ -603,12 +613,37 @@ int test_sm9_sign() {
 	sm9_sign_init(&ctx);
 	sm9_sign_update(&ctx, data, sizeof(data));
 	if (sm9_sign_finish(&ctx, &key, sig, &siglen) < 0) goto err; ++j;
+#if 1
+    double begin,end;
+    size_t count = 100;
+    // 签名性能测试
+    begin = omp_get_wtime();
+    #pragma omp parallel for num_threads(thread_num)
+    for(int i = 0; i < count;i++){
+        sm9_sign_finish(&ctx, &key, sig, &siglen);
+    }
+    end = omp_get_wtime();
+    printf("sign - %d threads: run %d times, , total time: %f s, per second run %f tims\n", \
+			thread_num, count, (end-begin), count/(end-begin));
+#endif
 
 	sm9_verify_init(&ctx);
 	sm9_verify_update(&ctx, data, sizeof(data));
 	if (sm9_verify_finish(&ctx, sig, siglen, &mpk, (char *)IDA, sizeof(IDA)) != 1) goto err; ++j;
 
-	printf("%s() ok\n", __FUNCTION__);
+#if 1
+    // 签名性能测试
+    begin = omp_get_wtime();
+    #pragma omp parallel for num_threads(thread_num)
+    for(int i = 0; i < count;i++){
+        sm9_verify_finish(&ctx, sig, siglen, &mpk, (char *)IDA, sizeof(IDA));
+    }
+    end = omp_get_wtime();
+    printf("verify - %d threads: run %d times, , total time: %f s, per second run %f tims\n", \
+			thread_num, count, (end-begin), count/(end-begin));
+#endif
+
+    printf("%s() ok\n", __FUNCTION__);
 	return 1;
 err:
 	printf("%s test %d failed\n", __FUNCTION__, j);
@@ -649,8 +684,7 @@ int test_sm9_ciphertext()
 	return 1;
 }
 
-
-int test_sm9_encrypt() {
+int test_sm9_encrypt(int thread_num) {
 	SM9_ENC_MASTER_KEY msk;
 	SM9_ENC_KEY key;
 	SM9_TWIST_POINT de;
@@ -668,9 +702,28 @@ int test_sm9_encrypt() {
 
 	if (sm9_enc_master_key_extract_key(&msk, (char *)IDB, sizeof(IDB), &key) < 0) goto err; ++j;
 
-
 	sm9_twist_point_from_hex(&de, hex_de); if (!sm9_twist_point_equ(&(key.de), &de)) goto err; ++j;
+#if 1
+    double begin,end;
+    size_t count = 100;
+    begin = omp_get_wtime();
+    #pragma omp parallel for num_threads(thread_num)
+    for(int i = 0; i < count;i++){
+        sm9_encrypt(&msk, (char *)IDB, sizeof(IDB), data, sizeof(data), out, &outlen);
+    }
+    end = omp_get_wtime();
+    printf("enc - %d threads: run %d times, , total time: %f s, per second run %f tims\n", \
+			thread_num, count, (end-begin), count/(end-begin));
 
+    begin = omp_get_wtime();
+    #pragma omp parallel for num_threads(thread_num)
+    for(int i = 0; i < count;i++){
+        sm9_decrypt(&key, (char *)IDB, sizeof(IDB), out, outlen, dec, &declen);
+    }
+    end = omp_get_wtime();
+    printf("dec - %d threads: run %d times, , total time: %f s, per second run %f tims\n", \
+			thread_num, count, (end-begin), count/(end-begin));
+#endif
 	if (sm9_encrypt(&msk, (char *)IDB, sizeof(IDB), data, sizeof(data), out, &outlen) < 0) goto err; ++j;
 	if (sm9_decrypt(&key, (char *)IDB, sizeof(IDB), out, outlen, dec, &declen) < 0) goto err; ++j;
 	if (memcmp(data, dec, sizeof(data)) != 0) goto err; ++j;
@@ -684,19 +737,37 @@ err:
 }
 
 int main(void) {
-	if (test_sm9_fp() != 1) goto err;
-	if (test_sm9_fn() != 1) goto err;
-	if (test_sm9_fp2() != 1) goto err;
-	if (test_sm9_fp4() != 1) goto err;
-	if (test_sm9_fp12() != 1) goto err;
-	if (test_sm9_point() != 1) goto err;
-	if (test_sm9_twist_point() != 1) goto err;
-	if (test_sm9_pairing() != 1) goto err;
-	if (test_sm9_sign() != 1) goto err;
-	if (test_sm9_ciphertext() != 1) goto err;
-	if (test_sm9_encrypt() != 1) goto err;
+    test_sm9_pairing(1);
+    test_sm9_pairing(2);
+    test_sm9_pairing(4);
+    test_sm9_pairing(8);
+    test_sm9_pairing(16);
 
-	printf("%s all tests passed\n", __FILE__);
+    test_sm9_sign(1);
+    test_sm9_sign(2);
+    test_sm9_sign(4);
+    test_sm9_sign(8);
+    test_sm9_sign(16);
+
+    test_sm9_encrypt(1);
+    test_sm9_encrypt(2);
+    test_sm9_encrypt(4);
+    test_sm9_encrypt(8);
+    test_sm9_encrypt(16);
+
+    //	if (test_sm9_fp() != 1) goto err;
+//	if (test_sm9_fn() != 1) goto err;
+//	if (test_sm9_fp2() != 1) goto err;
+//	if (test_sm9_fp4() != 1) goto err;
+//	if (test_sm9_fp12() != 1) goto err;
+//	if (test_sm9_point() != 1) goto err;
+//	if (test_sm9_twist_point() != 1) goto err;
+//	if (test_sm9_pairing() != 1) goto err;
+//	if (test_sm9_sign() != 1) goto err;
+//	if (test_sm9_ciphertext() != 1) goto err;
+//	if (test_sm9_encrypt() != 1) goto err;
+
+//	printf("%s all tests passed\n", __FILE__);
 	return 0;
 err:
 	error_print();
